@@ -7,7 +7,7 @@ fun main(args: Array<String>) {
 	game.play()
 	var score = 0
 	game.history.forEach {
-		println(it)
+//		println(it)
 		score += it[3]
 	}
 	println("score = ${score}")
@@ -31,9 +31,17 @@ class Player(var balance: Int) {
 
 
 fun Iterable<Int>.softSum(): Int { // TODO implement properly
-	var sum = 0
+	return if (this.sum() > 21 && this.isSoft()) {
+		this.sum() - 10
+	} else
+		this.sum()
+}
+
+fun Iterable<Int>.isSoft(): Boolean {
 	for (element in this) {
-		sum += element
+		if (element == 11) {
+			return true
+		}
 	}
-	return sum
+	return false
 }

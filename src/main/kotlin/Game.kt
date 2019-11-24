@@ -4,7 +4,10 @@ import java.util.*
 import kotlin.random.Random
 
 
-class Game(val player: Player, val maxRounds: Int, val hardStop: Boolean = true, val minBet: Int = 10) {
+class Game(
+	private val player: Player, private val maxRounds: Int,
+	val hardStop: Boolean = true, private val minBet: Int = 10
+) {
 	private val deck: Stack<Int> = Stack()
 	private var cutPoint = 0
 
@@ -32,24 +35,24 @@ class Game(val player: Player, val maxRounds: Int, val hardStop: Boolean = true,
 
 			splitIfNeeded(dealerHand)
 
-			var addBet = playHand(player.hand)
+			var addBet = playHand(player.hand, dealerHand)
 			player.balance -= addBet
 			player.bet += addBet
 
 			if (player.hasSplit) {
-				addBet = playHand(player.splitHand)
+				addBet = playHand(player.splitHand, dealerHand)
 				player.balance -= addBet
 				player.splitBet += addBet
 			}
 
 			if (player.splitBust && player.handBust && player.hasSplit) {
-				history.add(listOf(2, dealerHand.softSum(), player.hand.softSum(), 0))
-				history.add(listOf(2, dealerHand.softSum(), player.splitHand.softSum(), 0))
+				writeHistory(2, dealerHand.softSum(), player.hand.softSum(), 0)
+				writeHistory(2, dealerHand.softSum(), player.splitHand.softSum(), 0)
 				continue
 			}
 
 			if (player.handBust && !player.hasSplit) {
-				history.add(listOf(2, dealerHand.softSum(), player.hand.softSum(), 0))
+				writeHistory(2, dealerHand.softSum(), player.hand.softSum(), 0)
 				continue
 			}
 
@@ -59,14 +62,20 @@ class Game(val player: Player, val maxRounds: Int, val hardStop: Boolean = true,
 
 			val outcome = determineOutcome(dealerHand, player.hand)
 			player.balance += player.bet * outcome
-			history.add(listOf(2 - outcome, dealerHand.softSum(), player.hand.softSum(), outcome))
+			writeHistory(2 - outcome, dealerHand.softSum(), player.hand.softSum(), outcome)
 
 			if (player.hasSplit) {
 				val splitOutcome = determineOutcome(dealerHand, player.splitHand)
 				player.balance += player.splitBet * splitOutcome
-				history.add(listOf(2 - splitOutcome, dealerHand.softSum(), player.splitHand.softSum(), splitOutcome))
+				writeHistory(2 - splitOutcome, dealerHand.softSum(), player.splitHand.softSum(), splitOutcome)
 			}
 		}
+	}
+
+	private fun writeHistory(dScore: Int, dSum: Int, pSum: Int, pScore: Int) {
+		val stat = listOf(dScore, dSum, pSum, pScore)
+		println(stat)
+		history.add(stat)
 	}
 
 	private fun splitIfNeeded(dealerHand: MutableList<Int>) {
@@ -89,9 +98,43 @@ class Game(val player: Player, val maxRounds: Int, val hardStop: Boolean = true,
 		}
 	}
 
-	private fun playHand(hand: MutableList<Int>): Int {
+	private fun playHand(hand: MutableList<Int>, dealerHand: MutableList<Int>): Int {
 		var additionalBet = 0
-		while (hand.sum() < 17) {
+		val openCard = dealerHand[0]
+		while (hand.softSum() < 17) {
+			// Hard double for 9,10,11
+			if ((setOf(3, 4, 5, 6).contains(openCard) && hand.sum() == 9) ||
+				(openCard in 2..9 && hand.sum() == 10) ||
+				(openCard in 2..10 && hand.sum() == 11) &&
+				player.balance >= minBet
+			) { // Double down
+				additionalBet = minBet
+				hand.add(deck.pop())
+				println("Doubling down on cards $hand against ${dealerHand[0]}")
+				break
+			}
+			if ((hand.sum() == 12 && openCard in 4..6)
+				|| (hand.sum() in 13..16 && openCard in 2..6)
+			) {
+				break
+			}
+			if (hand.isSoft()) {
+				if ((hand.sum() in 13..14 && openCard in 5..6)
+					|| (hand.sum() in 15..16 && openCard in 4..6)
+					|| (hand.sum() in 17..18 && openCard in 3..6)
+					&& player.balance >= minBet
+				) { // Double down
+					additionalBet = minBet
+					hand.add(deck.pop())
+					println("Doubling down on cards $hand against ${dealerHand[0]}")
+					break
+				}
+				if ((hand.sum() == 18 && setOf(2,7,8).contains(openCard))
+					&& player.balance >= minBet) {
+					break // Stand
+				}
+
+			}
 			hand.add(deck.pop())
 		}
 		return additionalBet
@@ -105,6 +148,7 @@ class Game(val player: Player, val maxRounds: Int, val hardStop: Boolean = true,
 			else -> 0
 		}
 	}
+
 
 	private fun shuffleDeck() {
 		// Initialise the desk with 6 deck of cards
